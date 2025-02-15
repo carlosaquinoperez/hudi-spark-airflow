@@ -14,6 +14,8 @@ services:
     volumes:
       - ./config/minio:/data
     command: server /data --console-address ":9001"
+    networks:
+      - shared-network
 
   # Servicio Spark Master
   spark-master:
@@ -24,8 +26,18 @@ services:
       - "8081:8080"
     environment:
       - SPARK_MODE=master
+      - "spark.hadoop.fs.s3a.endpoint=http://54.221.39.34:9000"
+      - "spark.hadoop.fs.s3a.access.key=admin"
+      - "spark.hadoop.fs.s3a.secret.key=password"
+      - "spark.hadoop.fs.s3a.path.style.access=true"
+      - "spark.hadoop.fs.s3a.connection.ssl.enabled=false"
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_DRIVER_MEMORY=1g
+      - SPARK_EXECUTOR_MEMORY=2g
     networks:
-      - spark-network
+      - shared-network
 
   # Servicio Spark Worker
   spark-worker:
@@ -36,30 +48,82 @@ services:
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+      - SPARK_WORKER_MEMORY=2g
     networks:
-      - spark-network
+      - shared-network
 
-  # Servicio Airflow
-  airflow:
+  # Base de Datos PostgreSQL para Airflow (Persistencia)
+  postgres:
+    image: postgres:13
+    container_name: airflow-db
+    restart: always
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_postgres:/var/lib/postgresql/data
+    networks:
+      - shared-network
+
+  # Servicio Airflow Webserver
+  airflow-webserver:
     build: 
       context: .
       dockerfile: Dockerfile-airflow
-    image: apache/airflow:latest
-    container_name: airflow
+    container_name: airflow-webserver
+    restart: always
     ports:
-      - "8080:8080"
+      - "8082:8080"
     environment:
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW_HOME=/opt/airflow
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
     volumes:
       - ./dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
       - airflow_data:/opt/airflow
     command: webserver
+    depends_on:
+      - airflow-scheduler
     networks:
-      - airflow-network
+      - shared-network
+
+  # Servicio Airflow Scheduler
+  airflow-scheduler:
+    build: 
+      context: .
+      dockerfile: Dockerfile-airflow
+    container_name: airflow-scheduler
+    restart: always
+    environment:
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW_HOME=/opt/airflow
+      - AWS_ACCESS_KEY_ID=admin
+      - AWS_SECRET_ACCESS_KEY=password
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - airflow_logs:/opt/airflow/logs
+      - airflow_data:/opt/airflow
+    command: scheduler
+    depends_on:
+      - spark-master
+      - postgres
+    networks:
+      - shared-network
 
 networks:
-  spark-network:
-  airflow-network:
+  shared-network:
+    driver: bridge
 
 volumes:
   airflow_data:
+  airflow_logs:
+  airflow_postgres:
