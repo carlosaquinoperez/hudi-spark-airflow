@@ -1,14 +1,14 @@
 FROM apache/airflow:2.5.1-python3.8
 
 # Copiar los archivos necesarios
-COPY entrypoint.sh /entrypoint.sh
-COPY requirements.txt /requirements.txt
+COPY entrypoint.sh /opt/airflow/entrypoint.sh
+COPY requirements.txt /opt/airflow/requirements.txt
 
-# Dar permisos de ejecución al entrypoint y cambiar usuario
+# Dar permisos de ejecución al entrypoint antes de cambiar de usuario
 USER root
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /opt/airflow/entrypoint.sh
 
-# Instalar Java 17, procps y otras dependencias necesarias
+# Instalar dependencias del sistema necesarias antes de cambiar de usuario
 RUN apt-get update && apt-get install -y \
     openjdk-17-jdk \
     procps \
@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y \
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV PATH="$JAVA_HOME/bin:$PATH"
 
-# 🔥 Descargar e instalar Spark 3.3.0 (MISMA VERSIÓN QUE MASTER Y WORKER)
+# Descargar e instalar Spark 3.3.0
 RUN curl -o /tmp/spark.tgz https://archive.apache.org/dist/spark/spark-3.3.0/spark-3.3.0-bin-hadoop3.tgz && \
     tar -xvzf /tmp/spark.tgz -C /opt/ && \
     mv /opt/spark-3.3.0-bin-hadoop3 /opt/spark && \
@@ -32,9 +32,11 @@ ENV PATH="$SPARK_HOME/bin:$SPARK_HOME/sbin:$PATH"
 # Configurar Airflow para usar LocalExecutor
 ENV AIRFLOW__CORE__EXECUTOR=LocalExecutor
 
-# Cambiar al usuario airflow antes de instalar los paquetes de Python
+# Cambiar al usuario airflow
 USER airflow
-RUN pip install --no-cache-dir -r /requirements.txt
 
-# Establecer el entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
+# Instalar dependencias usando el usuario airflow
+RUN pip install --no-cache-dir -r /opt/airflow/requirements.txt
+
+# Establecer el entrypoint correctamente
+ENTRYPOINT ["/bin/bash", "/opt/airflow/entrypoint.sh"]

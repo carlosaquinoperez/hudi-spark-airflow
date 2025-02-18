@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Servicio MinIO
   minio:
@@ -19,30 +17,36 @@ services:
 
   # Servicio Spark Master
   spark-master:
-    image: bitnami/spark:3.3.0
+    build:
+      context: .
+      dockerfile: Dockerfile-spark
     container_name: spark-master
     ports:
       - "7077:7077"
       - "8081:8080"
     environment:
       - SPARK_MODE=master
-      - "spark.hadoop.fs.s3a.endpoint=http://54.221.39.34:9000"
-      - "spark.hadoop.fs.s3a.access.key=admin"
-      - "spark.hadoop.fs.s3a.secret.key=password"
-      - "spark.hadoop.fs.s3a.path.style.access=true"
-      - "spark.hadoop.fs.s3a.connection.ssl.enabled=false"
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password
       - SPARK_WORKER_MEMORY=2g
       - SPARK_DRIVER_MEMORY=1g
       - SPARK_EXECUTOR_MEMORY=2g
+      - EC2_PUBLIC_IP=${EC2_PUBLIC_IP}   # ✅ Pasamos la IP como variable de entorno
+      # MINIO_ENDPOINT=http://${EC2_PUBLIC_IP}:9000
+      - MINIO_ENDPOINT=http://minio:9000
+    entrypoint: ["/bin/bash", "/opt/bitnami/scripts/spark/entrypoint-spark.sh", "master"]
+    volumes:
+      - spark_work:/opt/bitnami/spark/work  # ✅ Volumen compartido
     networks:
       - shared-network
 
   # Servicio Spark Worker
   spark-worker:
-    image: bitnami/spark:3.3.0
+    build:
+      context: .
+      dockerfile: Dockerfile-spark
     container_name: spark-worker
+    user: "root"  # ✅ Ejecutar como root para evitar problemas de permisos
     depends_on:
       - spark-master
     environment:
@@ -51,10 +55,16 @@ services:
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password
       - SPARK_WORKER_MEMORY=2g
+      - EC2_PUBLIC_IP=${EC2_PUBLIC_IP}   # ✅ Pasamos la IP como variable de entorno
+      #- MINIO_ENDPOINT=http://${EC2_PUBLIC_IP}:9000
+      - MINIO_ENDPOINT=http://minio:9000
+    entrypoint: ["/bin/bash", "/opt/bitnami/scripts/spark/entrypoint-spark.sh", "worker"]
+    volumes:
+      - spark_work:/opt/bitnami/spark/work  # ✅ Montar volumen compartido
     networks:
       - shared-network
 
-  # Base de Datos PostgreSQL para Airflow (Persistencia)
+  # Base de Datos PostgreSQL para Airflow
   postgres:
     image: postgres:13
     container_name: airflow-db
@@ -70,13 +80,13 @@ services:
 
   # Servicio Airflow Webserver
   airflow-webserver:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile-airflow
     container_name: airflow-webserver
     restart: always
     ports:
-      - "8082:8080"
+      - "8082:8082"
     environment:
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
@@ -84,19 +94,22 @@ services:
       - AIRFLOW_HOME=/opt/airflow
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password
+      - AIRFLOW__WEBSERVER__WEB_SERVER_HOST=0.0.0.0
+      - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8082  # ✅ Configuración explícita
+      - EC2_PUBLIC_IP=${EC2_PUBLIC_IP}  # 🔥 PASAMOS LA IP PÚBLICA
+      #- MINIO_ENDPOINT=http://${EC2_PUBLIC_IP}:9000
+      - MINIO_ENDPOINT=http://minio:9000
+    entrypoint: ["/bin/bash", "/opt/airflow/entrypoint.sh", "webserver"]
     volumes:
       - ./dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
       - airflow_data:/opt/airflow
-    command: webserver
-    depends_on:
-      - airflow-scheduler
     networks:
       - shared-network
 
   # Servicio Airflow Scheduler
   airflow-scheduler:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile-airflow
     container_name: airflow-scheduler
@@ -108,11 +121,13 @@ services:
       - AIRFLOW_HOME=/opt/airflow
       - AWS_ACCESS_KEY_ID=admin
       - AWS_SECRET_ACCESS_KEY=password
+      - EC2_PUBLIC_IP=${EC2_PUBLIC_IP}  # 🔥 PASAMOS LA IP PÚBLICA
+      - MINIO_ENDPOINT=http://${EC2_PUBLIC_IP}:9000
+    entrypoint: ["/bin/bash", "/opt/airflow/entrypoint.sh", "scheduler"]
     volumes:
       - ./dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
       - airflow_data:/opt/airflow
-    command: scheduler
     depends_on:
       - spark-master
       - postgres
@@ -127,3 +142,4 @@ volumes:
   airflow_data:
   airflow_logs:
   airflow_postgres:
+  spark_work:  # ✅ Volumen compartido para evitar problemas de permisos

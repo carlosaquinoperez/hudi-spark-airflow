@@ -1,0 +1,27 @@
+FROM bitnami/spark:3.3.0
+
+# 🔹 Cambiar temporalmente a root para instalar dependencias y modificar permisos
+USER root
+
+# ✅ Instalar Java y curl
+RUN apt-get update && apt-get install -y \
+    openjdk-17-jdk-headless \
+    curl && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# ✅ Configurar variables de entorno para Java
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH="$JAVA_HOME/bin:$PATH"
+
+# ✅ Crear un usuario con nombre (por defecto, Spark usa un usuario sin nombre)
+RUN useradd -ms /bin/bash sparkuser
+
+# ✅ Copiar el entrypoint y asignarle permisos correctos
+COPY entrypoint-spark.sh /opt/bitnami/scripts/spark/entrypoint-spark.sh
+RUN chmod 755 /opt/bitnami/scripts/spark/entrypoint-spark.sh
+
+# 🔹 Cambiar al usuario sparkuser para evitar errores de seguridad
+USER sparkuser
+
+# ✅ Establecer el entrypoint
+ENTRYPOINT ["/bin/bash", "/opt/bitnami/scripts/spark/entrypoint-spark.sh"]

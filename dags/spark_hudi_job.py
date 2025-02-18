@@ -1,13 +1,25 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_timestamp
+import requests
+
+# Obtener la IP pública de la instancia EC2 con manejo de errores
+try:
+    EC2_PUBLIC_IP = requests.get("http://169.254.169.254/latest/meta-data/public-ipv4", timeout=5).text
+except requests.RequestException:
+    EC2_PUBLIC_IP = "localhost"  # Fallback si no se puede obtener la IP
+
+MINIO_ENDPOINT = f"http://{EC2_PUBLIC_IP}:9000"
 
 # Crear la sesión de Spark
 spark = SparkSession.builder \
     .appName("HudiSparkJob") \
     .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
-    .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem") \
-    .config("spark.hadoop.fs.s3a.aws.credentials.provider", 
-            "com.amazonaws.auth.DefaultAWSCredentialsProviderChain") \
+    .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
+    .config("spark.hadoop.fs.s3a.access.key", "admin") \
+    .config("spark.hadoop.fs.s3a.secret.key", "password") \
+    .config("spark.hadoop.fs.s3a.path.style.access", "true") \
+    .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false") \
+    .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider") \
     .getOrCreate()
 
 # Datos de prueba
