@@ -1,0 +1,10 @@
+FROM trinodb/trino:400
+
+# Cambiamos a root para crear y asignar permisos en /var/trino
+USER root
+
+# Creamos /var/trino y asignamos permisos a 'trino' (el usuario que usa la imagen)
+RUN mkdir -p /var/trino/var && chown -R trino:trino /var/trino
+
+# Regresamos al usuario 'trino' que usa la imagen base
+USER trino

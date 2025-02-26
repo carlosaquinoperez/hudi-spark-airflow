@@ -37,6 +37,7 @@ services:
     entrypoint: ["/bin/bash", "/opt/bitnami/scripts/spark/entrypoint-spark.sh", "master"]
     volumes:
       - spark_work:/opt/bitnami/spark/work  # ✅ Volumen compartido
+      - ./scripts:/opt/airflow/scripts
     networks:
       - shared-network
 
@@ -61,6 +62,7 @@ services:
     entrypoint: ["/bin/bash", "/opt/bitnami/scripts/spark/entrypoint-spark.sh", "worker"]
     volumes:
       - spark_work:/opt/bitnami/spark/work  # ✅ Montar volumen compartido
+      - ./scripts:/opt/airflow/scripts
     networks:
       - shared-network
 
@@ -68,6 +70,7 @@ services:
   postgres:
     image: postgres:13
     container_name: airflow-db
+    hostname: airflow-db
     restart: always
     environment:
       POSTGRES_USER: airflow
@@ -75,6 +78,8 @@ services:
       POSTGRES_DB: airflow
     volumes:
       - airflow_postgres:/var/lib/postgresql/data
+      - ./scripts:/opt/airflow/scripts
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/postgres-init.sql:ro
     networks:
       - shared-network
 
@@ -104,6 +109,7 @@ services:
       - ./dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
       - airflow_data:/opt/airflow
+      - ./scripts:/opt/airflow/scripts
     networks:
       - shared-network
 
@@ -128,11 +134,75 @@ services:
       - ./dags:/opt/airflow/dags
       - airflow_logs:/opt/airflow/logs
       - airflow_data:/opt/airflow
+      - ./scripts:/opt/airflow/scripts
     depends_on:
       - spark-master
       - postgres
     networks:
       - shared-network
+
+  # Servicio Hive Metastore
+  hive-metastore:
+    image: starburstdata/hive:3.1.2-e.18  # Usamos la imagen oficial
+    container_name: hive-metastore
+    ports:
+      - "9083:9083"  # Metastore Thrift
+    environment:
+      HIVE_METASTORE_JDBC_URL: jdbc:postgresql://postgres:5432/metastore
+      HIVE_METASTORE_DRIVER: org.postgresql.Driver
+      HIVE_METASTORE_USER: airflow
+      HIVE_METASTORE_PASSWORD: airflow
+      HIVE_METASTORE_WAREHOUSE_DIR: s3://hudi-tables/
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: admin
+      S3_SECRET_KEY: password
+      S3_PATH_STYLE_ACCESS: "true"
+      REGION: ""
+      HIVE_METASTORE_USERS_IN_ADMIN_ROLE: "admin"
+      GOOGLE_CLOUD_KEY_FILE_PATH: ""
+      AZURE_ADL_CLIENT_ID: ""
+      AZURE_ADL_CREDENTIAL: ""
+      AZURE_ADL_REFRESH_URL: ""
+      AZURE_ABFS_STORAGE_ACCOUNT: ""
+      AZURE_ABFS_ACCESS_KEY: ""
+      AZURE_WASB_STORAGE_ACCOUNT: ""
+      AZURE_ABFS_OAUTH: ""
+      AZURE_ABFS_OAUTH_TOKEN_PROVIDER: ""
+      AZURE_ABFS_OAUTH_CLIENT_ID: ""
+      AZURE_ABFS_OAUTH_SECRET: ""
+      AZURE_ABFS_OAUTH_ENDPOINT: ""
+      AZURE_WASB_ACCESS_KEY: ""
+    depends_on:
+      - postgres
+      - minio
+    volumes:
+      - ./init-metastore.sh:/docker-entrypoint-initdb.d/init-metastore.sh:ro
+      - ./config/hive/hive-site.xml:/opt/apache-hive-3.1.2-bin/conf/hive-site.xml:ro
+    entrypoint: ["/bin/bash", "/docker-entrypoint-initdb.d/init-metastore.sh"]
+    networks:
+      - shared-network
+
+  # Servicio Trino
+  trino-coordinator:
+    build:
+      context: .
+      dockerfile: Dockerfile.trino
+    container_name: trino-coordinator
+    hostname: trino-coordinator
+    ports:
+      - "8083:8080"
+    environment:
+      - TRINO_NODE=trino-coordinator
+      - TRINO_HTTP_PORT=8080
+      - TRINO_HIVE_METASTORE_URI=thrift://hive-metastore:9083
+    volumes:
+      - ./trino/etc:/etc/trino
+      - trino_data:/var/trino
+    networks:
+      - shared-network
+    depends_on:
+      - hive-metastore
+      - minio
 
 networks:
   shared-network:
@@ -143,3 +213,6 @@ volumes:
   airflow_logs:
   airflow_postgres:
   spark_work:  # ✅ Volumen compartido para evitar problemas de permisos
+  hive_metastore_postgresql:  # Para almacenamiento persistente de Hive
+  trino_data:
+

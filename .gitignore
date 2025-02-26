@@ -1,0 +1,36 @@
+# Ignorar archivos temporales de editores de texto
+*~
+*.swp
+*.swo
+
+# Ignorar archivos generados por herramientas de bases de datos y procesamiento de datos
+*.xl.meta
+*.parquet
+*.log
+
+# Ignorar archivos de configuración específicos de contenedores
+docker-compose.override.yml
+*.env
+
+# Ignorar directorios de dependencias
+node_modules/
+*.egg-info/
+
+# Ignorar directorios de compilación
+build/
+dist/
+
+# Ignorar contenedores de Docker y archivos relacionados
+*.bak
+*.tar
+*.gz
+*.img
+
+# Ignorar archivos de IDEs (por ejemplo, Visual Studio Code)
+.vscode/
+.idea/
+
+# Ignorar archivos de prueba o cache
+__pycache__/
+*.pyc
+*.pyo
