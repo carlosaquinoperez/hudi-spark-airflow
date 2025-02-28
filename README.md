@@ -27,3 +27,6 @@
 ## 📌 Cómo Detener y Eliminar los Contenedores
 ```bash
 docker-compose down
+
+
+###
