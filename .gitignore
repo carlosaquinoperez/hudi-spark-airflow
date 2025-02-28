@@ -34,3 +34,15 @@ dist/
 __pycache__/
 *.pyc
 *.pyo
+
+# Carpetas de build/target
+target/
+**/target/
+*.jar
+
+# Datos de MinIO (metadata, buckets, tmp)
+config/minio/.minio.sys/
+config/minio/data/
+
+# Cualquier otro fichero temporal
+*.tmp
