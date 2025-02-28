@@ -20,6 +20,7 @@ spark = SparkSession.builder \
     .config("spark.hadoop.fs.s3a.path.style.access", "true") \
     .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false") \
     .config("spark.hadoop.fs.s3a.aws.credentials.provider", "org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider") \
+    .config("spark.hadoop.fs.s3a.region", "us-east-1") \
     .getOrCreate()
 
 # Leer Parquet desde MinIO
@@ -34,13 +35,14 @@ hudi_options = {
     "hoodie.datasource.write.precombine.field": "Date",
     "hoodie.datasource.write.operation": "upsert",
     "hoodie.datasource.write.table.type": "COPY_ON_WRITE",
-    # Habilitar la sincronización con Hive Metastore
+    # Habilitar la sincronización con Hive Metastore en modo HMS
     "hoodie.datasource.hive_sync.enable": "true",
+    "hoodie.datasource.hive_sync.mode": "hms",
     "hoodie.datasource.hive_sync.database": "default",
     "hoodie.datasource.hive_sync.table": "walmart_sales_hudi",
-    "hoodie.datasource.hive_sync.jdbcurl": "jdbc:postgresql://airflow-db:5432/metastore",
-    "hoodie.datasource.hive_sync.username": "hive",
-    "hoodie.datasource.hive_sync.password": "hive",
+    "hoodie.datasource.hive_sync.metastore.uris": "thrift://hive-metastore:9083",
+    "hoodie.datasource.hive_sync.username": "airflow",
+    "hoodie.datasource.hive_sync.password": "airflow",
     # Si tu tabla está particionada, especifica los campos de partición (opcional)
     # "hoodie.datasource.hive_sync.partition_fields": "partition_column1,partition_column2",
 }
