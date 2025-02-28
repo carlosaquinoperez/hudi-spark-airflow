@@ -45,4 +45,4 @@ config/minio/.minio.sys/
 config/minio/data/
 
 # Cualquier otro fichero temporal
-*.tmp
+*.tmpminio_data/
