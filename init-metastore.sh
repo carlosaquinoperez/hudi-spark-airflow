@@ -16,7 +16,7 @@ psql -h postgres -U airflow -d metastore -c "SELECT 1;"
 
 # Verificar si el esquema del metastore ya está inicializado
 # (se asume que la tabla 'bucketing_cols' forma parte del esquema de Hive)
-EXISTS=$(psql -h postgres -U airflow -d metastore -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'bucketing_cols');")
+EXISTS=$(psql -h postgres -U airflow -d metastore -tAc "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'BUCKETING_COLS');")
 if [ "$EXISTS" = "t" ]; then
   echo "El esquema del metastore ya está inicializado, omitiendo la inicialización."
 else

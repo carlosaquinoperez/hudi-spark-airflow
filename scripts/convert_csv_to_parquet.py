@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import current_timestamp
+from pyspark.sql.functions import current_timestamp, col, to_date, date_format
 import requests
 
 # Obtener la IP pública de la instancia EC2 con manejo de errores
@@ -35,6 +35,23 @@ for month in months:
 
     # Leer el CSV con Spark
     df_spark = spark.read.option("header", "true").csv(csv_path)
+
+    # 🔄 Convertir tipos de datos correctamente
+    df_spark = df_spark.withColumn("Store", col("Store").cast("int"))
+    df_spark = df_spark.withColumn("Date", to_date(col("Date"), "yyyy-MM-dd"))  # Convertir a tipo fecha
+    df_spark = df_spark.withColumn("Sales", col("Sales").cast("double"))
+    df_spark = df_spark.withColumn("Holiday_Flag", col("Holiday_Flag").cast("int"))
+    df_spark = df_spark.withColumn("Temperature", col("Temperature").cast("double"))
+    df_spark = df_spark.withColumn("Fuel_Price", col("Fuel_Price").cast("double"))
+    df_spark = df_spark.withColumn("CPI", col("CPI").cast("double"))
+    df_spark = df_spark.withColumn("Unemployment", col("Unemployment").cast("double"))
+
+    # 🔹 Convertir `month` a `yyyyMM` y guardarlo como `int`
+    df_spark = df_spark.withColumn("month", date_format(col("Date"), "yyyyMM").cast("int"))
+    
+    # 🔍 Mostrar esquema actualizado
+    print(f"🔍 Schema después de conversión para {month}:")
+    df_spark.printSchema()
 
     # Guardar en formato Parquet en MinIO
     df_spark.write.mode("overwrite").parquet(parquet_path)

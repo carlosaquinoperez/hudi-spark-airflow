@@ -27,25 +27,40 @@ spark = SparkSession.builder \
 parquet_path = "s3a://hudi-processed-data/parquet/"
 df = spark.read.option("recursiveFileLookup", "true").parquet(parquet_path)
 
+# 🔍 Verificar esquema antes de escribir en Hudi
+print("✅ Schema final antes de cargar en Hudi:")
+df.printSchema()
+
 # Escribir en Hudi
 hudi_table_path = "s3a://hudi-tables/walmart_sales_hudi/"
 hudi_options = {
     "hoodie.table.name": "walmart_sales_hudi",
-    "hoodie.datasource.write.recordkey.field": "Store,Date",
-    "hoodie.datasource.write.precombine.field": "Date",
     "hoodie.datasource.write.operation": "upsert",
     "hoodie.datasource.write.table.type": "COPY_ON_WRITE",
-    # Habilitar la sincronización con Hive Metastore en modo HMS
+
+    # Claves:
+    "hoodie.datasource.write.recordkey.field": "Store,Date",
+    "hoodie.datasource.write.precombine.field": "Date",
+    # Necesitas un key generator que soporte 'Store,Date'
+    "hoodie.datasource.write.keygenerator.class": "org.apache.hudi.keygen.ComplexKeyGenerator",
+    # Columna de partición (una sola):
+    "hoodie.datasource.write.partitionpath.field": "month",
+    # Sincronización con Hive usando HMS
     "hoodie.datasource.hive_sync.enable": "true",
     "hoodie.datasource.hive_sync.mode": "hms",
+    "hoodie.datasource.hive_sync.auto_create_table": "true",
     "hoodie.datasource.hive_sync.database": "default",
     "hoodie.datasource.hive_sync.table": "walmart_sales_hudi",
+    "hoodie.datasource.hive_sync.partition_fields": "month",
+    # Para 1 sola partición, mejor SinglePartPartitionPathExtractor
+    "hoodie.datasource.hive_sync.partition_extractor_class": "org.apache.hudi.hive.SinglePartPartitionValueExtractor",
     "hoodie.datasource.hive_sync.metastore.uris": "thrift://hive-metastore:9083",
     "hoodie.datasource.hive_sync.username": "airflow",
     "hoodie.datasource.hive_sync.password": "airflow",
-    # Si tu tabla está particionada, especifica los campos de partición (opcional)
-    # "hoodie.datasource.hive_sync.partition_fields": "partition_column1,partition_column2",
+    # Opcional para asegurarte de que ponga las rutas como month=2012-01
+    "hoodie.datasource.write.hive_style_partitioning": "false"
 }
+
 
 df.write.format("hudi").options(**hudi_options).mode("append").save(hudi_table_path)
 

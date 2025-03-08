@@ -46,3 +46,4 @@ config/minio/data/
 
 # Cualquier otro fichero temporal
 *.tmpminio_data/
+minio_data/
